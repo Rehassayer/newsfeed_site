@@ -1,8 +1,6 @@
-// src/App.jsx
-// Main application component using Tailwind CSS
 
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
+import  {AuthProvider}  from './context/AuthContext';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -11,23 +9,46 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import ArticlePage from './pages/ArticlePage';
 import CreateArticlePage from './pages/CreateArticlePage';
+import ProtectedRoute from './components/ProtectedRoute';
+import CategoryPage from './pages/CategoryPage';
+import ProfilePage from './pages/ProfilePage';
 
+
+const MainLayout = () => {
+  return(
+
+    <>
+  <Navbar/>
+  <main>
+    <Outlet/>
+  </main>
+  </>
+  );
+}
 function App() {
   return (
     <AuthProvider>
       <Router>
         <div className="min-h-screen flex flex-col bg-gray-50">
-          <Navbar />
+          <Navbar/>
           
           <main className="flex-1">
             <Routes>
-              <Route path="/" element={<HomePage />} />
+              {/* public routes */}
                <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+
+              {/* protected routes */}
+
+              <Route element={<ProtectedRoute/>}>
+              <Route path="/" element={<HomePage />} />
               <Route path="/article/:slug" element={<ArticlePage />} />
-              <Route path="/createArticle" element={<CreateArticlePage />} />
+              <Route path="/create-article" element={<CreateArticlePage />} />
+              <Route path="/categories/:slug" element={<CategoryPage />} />
+              <Route path ="/profile" element={<ProfilePage/>}/>
+              </Route>
              
             </Routes>
           </main>
@@ -36,7 +57,7 @@ function App() {
           <footer className="bg-slate-800 text-white py-8 mt-auto">
             <div className="max-w-7xl mx-auto px-4 text-center">
               <p className="text-gray-400">
-                © 2024 News Feed. Built with React & Tailwind CSS
+                © 2025 News Feed. 
               </p>
             </div>
           </footer>

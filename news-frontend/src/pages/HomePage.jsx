@@ -1,111 +1,117 @@
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { articleService, categoryService } from "../services/api";
+import { useAuth } from "../hooks/useAuth";
 
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { articleService } from '../services/api';
+const API_BASE = "http://localhost:8003";
 
 function HomePage() {
+  const { loading: authLoading } = useAuth();
   const [articles, setArticles] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchArticles();
-  }, [page]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parseInt(searchParams.get("page") || "1");
+  const category = searchParams.get("category") || "";
+  const search = searchParams.get("search") || "";
 
-  const fetchArticles = async () => {
+  useEffect(() => {
+    if (!authLoading) fetchInitialData();
+  }, [page, category, search, authLoading]);
+
+  const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const response = await articleService.getAll({ page, limit: 9 });
-      setArticles(response.data.articles);
-      setTotalPages(response.data.pagination.pages);
+      setError(null);
+
+      const [artRes, catRes] = await Promise.all([
+        articleService.getAll({ page, limit: 10, category, search }),
+        categoryService.getAll(),
+      ]);
+
+      const artData = artRes.data?.articles || artRes.data || artRes || [];
+      const pagination = artRes.data?.pagination || {};
+
+      setArticles(Array.isArray(artData) ? artData : []);
+      setTotalPages(pagination.pages || 1);
+      setCategories(catRes.data?.categories || catRes.data || []);
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      setError('Failed to load articles');
-      console.error(err);
+      console.error("Fetch Error:", err);
+      setError("Server connection failed.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Loading State
-  if (loading) {
+  if (authLoading)
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-600 text-lg">Loading articles...</p>
+      <div className="h-screen flex items-center justify-center font-black uppercase tracking-widest">
+        Loading identity...
       </div>
     );
-  }
-
-  // Error State
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <p className="text-red-600 text-xl mb-4">❌ {error}</p>
-          <button 
-            onClick={fetchArticles}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        
-        {/* Hero Section */}
-        <section className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl p-12 mb-12 text-center shadow-xl">
-          <h1 className="text-5xl font-bold mb-4">Welcome to News Feed</h1>
-          <p className="text-xl opacity-90">Stay updated with the latest news and stories</p>
-        </section>
-
-        {/* Articles Section */}
-        <section>
-          <h2 className="text-3xl font-bold text-gray-800 mb-8">Latest Articles</h2>
-          
-          {articles.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-gray-500 text-xl">
-                No articles found. Be the first to write one!
-              </p>
+    <div className="min-h-screen bg-[#fcfcfc] pt-24 pb-20">
+      <div className="max-w-[1440px] mx-auto px-6 lg:px-12">
+        <header className="mb-12 border-b border-slate-100 pb-8">
+          <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+            <div>
+              <h1 className="text-6xl font-black tracking-tighter text-slate-900">
+                The Daily <span className="text-blue-600">Post.</span>
+              </h1>
+              {/* <p className="text-slate-400 font-medium mt-2">
+                Curated stories for the modern reader.
+              </p> */}
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {articles.map((article) => (
-                <ArticleCard key={article.id} article={article} />
-              ))}
+            <div className="relative w-full md:w-80">
+              <input
+                type="text"
+                placeholder="Search..."
+                className="w-full bg-white border border-slate-200 rounded-xl py-3 px-10 focus:ring-2 focus:ring-blue-600 outline-none transition-all"
+                value={search}
+                onChange={(e) => setSearchParams({ search: e.target.value })}
+              />
+              <svg
+                className="w-4 h-4 absolute left-4 top-4 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="3"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
             </div>
-          )}
-        </section>
+          </div>
+        </header>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-8 mt-12">
-            <button
-              onClick={() => setPage(page - 1)}
-              disabled={page === 1}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              ← Previous
-            </button>
-            
-            <span className="text-gray-700 font-semibold">
-              Page {page} of {totalPages}
-            </span>
-            
-            <button
-              onClick={() => setPage(page + 1)}
-              disabled={page === totalPages}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              Next →
-            </button>
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            {[...Array(6)].map((_, i) => (
+              <SkeletonCard key={`skeleton-${i}`} />
+            ))}
+          </div>
+        ) : articles.length === 0 ? (
+          <div className="text-center py-20 border-2 border-dashed border-slate-100 rounded-3xl text-slate-300 font-bold uppercase tracking-widest">
+            No articles found.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            {articles.map((article, idx) => (
+              <ArticleCard
+                key={article.id || article._id || `article-${idx}`} // FIX 1: Unique Key
+                article={article}
+                isHero={idx === 0 && page === 1 && !search && !category}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -113,95 +119,95 @@ function HomePage() {
   );
 }
 
-// Article Card Component
-function ArticleCard({ article }) {
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+function ArticleCard({ article, isHero }) {
+  // FIX 2: Prevent empty string src downloads
+  const getImageUrl = () => {
+    if (!article.coverImage) return null;
+    return article.coverImage.startsWith("http")
+      ? article.coverImage
+      : `${API_BASE}${article.coverImage}`;
   };
 
+  const imageUrl = getImageUrl();
+
   return (
-    <Link 
+    <Link
       to={`/article/${article.slug}`}
-      className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 flex flex-col"
+      className={`group ${
+        isHero
+          ? "md:col-span-3 flex flex-col md:flex-row gap-10 mb-10"
+          : "flex flex-col"
+      }`}
     >
-      {/* Cover Image */}
-      {article.coverImage ? (
-        <div className="h-48 overflow-hidden bg-gray-200">
-          <img 
-            src={article.coverImage} 
+      <div
+        className={`relative overflow-hidden rounded-2xl bg-slate-100 ${
+          isHero ? "md:w-2/3 aspect-video" : "aspect-[4/3] mb-6"
+        }`}
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
             alt={article.title}
-            className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
           />
-        </div>
-      ) : (
-        <div className="h-48 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-          <span className="text-white text-6xl">📰</span>
-        </div>
-      )}
-
-      <div className="p-6 flex flex-col flex-1">
-        {/* Category Badge */}
-        {article.category && (
-          <span 
-            className="inline-block px-3 py-1 rounded-full text-xs font-bold text-white mb-3 self-start"
-            style={{ backgroundColor: article.category.color || '#3498db' }}
-          >
-            {article.category.name}
-          </span>
-        )}
-
-        {/* Title */}
-        <h3 className="text-xl font-bold text-gray-800 mb-2 line-clamp-2 hover:text-blue-600 transition-colors">
-          {article.title}
-        </h3>
-
-        {/* Excerpt */}
-        {article.excerpt && (
-          <p className="text-gray-600 text-sm mb-4 line-clamp-3 flex-1">
-            {article.excerpt}
-          </p>
-        )}
-
-        {/* Meta Information */}
-        <div className="flex flex-wrap gap-4 text-sm text-gray-500 pt-4 border-t border-gray-100">
-          <span className="flex items-center gap-1">
-            <span>👤</span>
-            <span>{article.author?.name || 'Anonymous'}</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span>📅</span>
-            <span>{formatDate(article.publishedAt)}</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span>👁️</span>
-            <span>{article.views}</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span>❤️</span>
-            <span>{article.likes}</span>
-          </span>
-        </div>
-
-        {/* Tags */}
-        {article.tags && article.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-4">
-            {article.tags.slice(0, 3).map((tag) => (
-              <span 
-                key={tag.id}
-                className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition-colors"
-              >
-                #{tag.name}
-              </span>
-            ))}
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-slate-200 text-slate-400 font-black text-[10px] uppercase">
+            No Preview
           </div>
         )}
+
+        {/* Video Icon Overlay */}
+        {article.mediaType === "video" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
+            <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-xl">
+              <svg
+                className="w-6 h-6 text-blue-600 ml-1"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.333-5.89a1.5 1.5 0 000-2.538L6.3 2.841z" />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        <span className="absolute top-4 left-4 bg-blue-600 text-white text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">
+          {article.category?.name || "News"}
+        </span>
+      </div>
+
+      <div className={isHero ? "md:w-1/3 py-4" : ""}>
+        <h2
+          className={`${
+            isHero ? "text-4xl" : "text-xl"
+          } font-black text-slate-900 group-hover:text-blue-600 transition-colors mb-3 leading-tight`}
+        >
+          {article.title}
+        </h2>
+        <p className="text-slate-500 line-clamp-3 mb-6 text-sm leading-relaxed">
+          {article.excerpt || article.content?.substring(0, 150)}...
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black uppercase">
+            {article.author?.name?.charAt(0) || "A"}
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">
+            {article.author?.name || "Staff Writer"}
+          </span>
+        </div>
       </div>
     </Link>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="animate-pulse">
+      <div className="aspect-[4/3] bg-slate-200 rounded-2xl mb-4" />
+      <div className="h-6 bg-slate-200 rounded w-3/4 mb-2" />
+      <div className="h-4 bg-slate-200 rounded w-full mb-1" />
+      <div className="h-4 bg-slate-200 rounded w-1/2" />
+    </div>
   );
 }
 

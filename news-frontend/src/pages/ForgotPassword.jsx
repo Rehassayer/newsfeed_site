@@ -1,94 +1,121 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import api from "../services/api";
 
 function ForgotPassword() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      // ✅ Hits your backend OTP generator
-      await axios.post('http://localhost:8003/api/auth/forgot-password', { email });
-      
-      // ✅ Redirect to Reset Password page and pass the email in 'state'
-      navigate('/reset-password', { state: { email } });
+      // Hits your backend OTP generator
+      await api.post("/api/auth/forgot-password", { email });
+
+      // Redirect to Reset Password page and pass the email in 'state'
+      navigate("/reset-password", { state: { email } });
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send OTP. Please try again.');
+      setError(
+        err.response?.data?.error ||
+          "Account synchronization failed. Please verify your email."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-        {/* Header Decor */}
-        <div className="h-2 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
-        
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-50 rounded-full mb-4">
-              <span className="text-3xl">🔑</span>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800">Forgot Password?</h2>
-            <p className="text-slate-500 mt-2">
-              No worries! Enter your email and we'll send you a 6-digit code to reset your password.
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-6">
+      <div className="max-w-md w-full">
+        {/* Branding */}
+        <div className="text-center mb-10">
+          <Link
+            to="/"
+            className="text-3xl font-black tracking-tighter text-slate-900 uppercase"
+          >
+            The<span className="text-blue-600">Post</span>
+          </Link>
+          <div className="h-1 w-12 bg-slate-900 mx-auto mt-4"></div>
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-white border border-slate-200 shadow-sm p-10">
+          <header className="mb-8 text-center">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
+              Account Recovery
+            </h2>
+            <p className="text-slate-500 text-sm mt-2 italic">
+              "Enter your registered email to receive a secure access
+              credential."
             </p>
-          </div>
+          </header>
 
           {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg flex items-center">
-              <span className="mr-2">⚠️</span> {error}
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8">
+              <p className="text-[10px] font-black text-red-700 uppercase tracking-widest leading-relaxed">
+                {error}
+              </p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Email Address
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                Subscriber Email
               </label>
-              <input 
-                type="email" 
-                placeholder="name@example.com" 
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-400"
+              <input
+                type="email"
+                placeholder="editor@newspaper.com"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 focus:border-slate-900 focus:bg-white outline-none transition-all text-sm font-medium"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
-              className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transform active:scale-[0.98] transition-all disabled:bg-slate-400 disabled:cursor-not-allowed shadow-lg"
+              className="w-full py-4 bg-slate-900 text-white text-xs font-black uppercase tracking-[0.3em] hover:bg-blue-600 disabled:bg-slate-300 transition-all shadow-lg shadow-slate-200"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Sending Code...
+                  <svg
+                    className="animate-spin h-4 w-4 mr-3 border-2 border-white border-t-transparent rounded-full"
+                    viewBox="0 0 24 24"
+                  ></svg>
+                  Processing...
                 </span>
               ) : (
-                'Send Verification Code'
+                "Request Access Code"
               )}
             </button>
           </form>
-
-          <div className="mt-8 text-center">
-            <Link to="/login" className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors">
-              ← Back to Login
-            </Link>
-          </div>
         </div>
+
+        {/* Footer Navigation */}
+        <div className="mt-10 text-center">
+          <Link
+            to="/login"
+            className="text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-colors"
+          >
+            ← Return to Sign In
+          </Link>
+        </div>
+
+        {/* Support Note */}
+        <p className="mt-12 text-center text-[10px] text-slate-400 font-medium leading-loose max-w-xs mx-auto">
+          For further assistance with account recovery, please contact our
+          <span className="text-slate-900 font-bold underline cursor-pointer ml-1">
+            Editorial Support Desk
+          </span>
+          .
+        </p>
       </div>
     </div>
   );

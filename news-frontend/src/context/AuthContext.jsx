@@ -1,20 +1,8 @@
-// src/context/AuthContext.jsx
-// This manages the logged-in user across your entire app
-
-import { createContext, useContext, useState, useEffect } from 'react';
-import { authService, userService } from '../services/api';
+import { createContext, useContext, useState, useEffect } from "react";
+import { authService, userService } from "../services/api";
 
 // Create the context
-const AuthContext = createContext(null);
-
-// Custom hook to use auth context
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
+export const AuthContext = createContext(null);
 
 // Provider component
 export const AuthProvider = ({ children }) => {
@@ -30,16 +18,26 @@ export const AuthProvider = ({ children }) => {
   // Check authentication status
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        // Get user profile
-        const response = await userService.getProfile();
-        setUser(response.data.user);
+      setLoading(true);
+
+      // Attempt to get the profile.
+      // Because 'api.js' has 'withCredentials: true',
+      // it will automatically send the 'jwt' cookie if it exists.
+      const response = await userService.getProfile();
+
+      // Flexible check for different data structures
+      const userData = response?.data?.user || response?.user;
+
+      if (userData) {
+        setUser(userData);
+      } else {
+        setUser(null);
       }
     } catch (err) {
-      console.error('Auth check failed:', err);
-      localStorage.removeItem('token');
+      // If 401 occurs, it just means the session expired or no cookie exists
+      console.log("No active session found.");
       setUser(null);
+      localStorage.removeItem("token");
     } finally {
       setLoading(false);
     }
@@ -53,7 +51,7 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
       return { success: true };
     } catch (err) {
-      const message = err.response?.data?.message || 'Login failed';
+      const message = err.response?.data?.message || "Login failed";
       setError(message);
       return { success: false, error: message };
     }
@@ -67,7 +65,7 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
       return { success: true };
     } catch (err) {
-      const message = err.response?.data?.message || 'Registration failed';
+      const message = err.response?.data?.message || "Registration failed";
       setError(message);
       return { success: false, error: message };
     }
@@ -78,10 +76,10 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.logout();
     } catch (err) {
-      console.error('Logout error:', err);
+      console.error("Logout error:", err);
     } finally {
       setUser(null);
-      localStorage.removeItem('token');
+      localStorage.removeItem("token");
     }
   };
 
@@ -101,21 +99,23 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user can edit content (AUTHOR, EDITOR, ADMIN)
   const canEdit = () => {
-    return hasRole(['AUTHOR', 'EDITOR', 'ADMIN']);
+    return hasRole(["AUTHOR", "EDITOR", "ADMIN"]);
   };
 
   // Check if user can moderate (EDITOR, ADMIN)
   const canModerate = () => {
-    return hasRole(['EDITOR', 'ADMIN']);
+    return hasRole(["EDITOR", "ADMIN"]);
   };
 
   // Check if user is admin
   const isAdmin = () => {
-    return hasRole('ADMIN');
+    return hasRole("ADMIN");
   };
 
   const value = {
     user,
+    setUser,
+    setIsAuthenticated: (val) => setUser(val ? user : null),
     loading,
     error,
     login,
@@ -132,4 +132,10 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export default AuthContext;
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  return context;
+};
+// export { AuthContext };
+export default AuthProvider;

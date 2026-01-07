@@ -1,350 +1,252 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { articleService, categoryService, tagService } from "../services/api";
+import { useAuth } from "../hooks/useAuth";
+import MediaGalleryModal from "../components/MediaGalleryModal";
 
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { articleService, categoryService, tagService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+const API_BASE = "http://localhost:8003";
 
 function CreateArticlePage() {
   const navigate = useNavigate();
-  const { user, canEdit } = useAuth();
-
-  // Redirect if user can't create articles
-  useEffect(() => {
-    if (!canEdit()) {
-      navigate('/');
-    }
-  }, [canEdit, navigate]);
+  const { canEdit } = useAuth();
 
   const [formData, setFormData] = useState({
-    title: '',
-    excerpt: '',
-    content: '',
-    coverImage: '',
-    categoryId: '',
+    title: "",
+    excerpt: "",
+    content: "",
+    coverImage: "",
+    videoUrl: "",
+    mediaType: "image", // 'image' or 'video'
+    categoryId: "",
     tags: [],
-    isPublished: false,
-    isFeatured: false,
-    isBreaking: false,
+    isPublished: true,
   });
 
   const [categories, setCategories] = useState([]);
-  const [tags, setTags] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
-  // Fetch categories and tags
   useEffect(() => {
-    fetchCategoriesAndTags();
-  }, []);
+    if (!canEdit()) navigate("/");
+    const loadMetadata = async () => {
+      try {
+        const [c, t] = await Promise.all([
+          categoryService.getAll(),
+          tagService.getAll(),
+        ]);
+        setCategories(c.data?.categories || c.data || []);
+        setAvailableTags(t.data?.tags || t.data || []);
+      } catch (err) {
+        setError("Metadata sync failed.");
+      }
+    };
+    loadMetadata();
+  }, [canEdit, navigate]);
 
-  const fetchCategoriesAndTags = async () => {
-    try {
-      const [categoriesRes, tagsRes] = await Promise.all([
-        categoryService.getAll(),
-        tagService.getAll(),
-      ]);
-      setCategories(categoriesRes.data.categories);
-      setTags(tagsRes.data.tags);
-    } catch (err) {
-      console.error('Failed to fetch categories/tags:', err);
+  const handleTagAction = async (e) => {
+    if (e.key !== "Enter" || !tagInput.trim()) return;
+    e.preventDefault();
+    const clean = tagInput.trim().replace("#", "");
+    let targetTag = availableTags.find(
+      (t) => t.name.toLowerCase() === clean.toLowerCase()
+    );
+
+    if (!targetTag) {
+      try {
+        const res = await tagService.create({ name: clean });
+        targetTag = res.data?.tag || res.data;
+        setAvailableTags((prev) => [...prev, targetTag]);
+      } catch (err) {
+        return;
+      }
     }
-  };
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
-  };
-
-  const handleTagToggle = (tagId) => {
-    const currentTags = formData.tags;
-    if (currentTags.includes(tagId)) {
-      setFormData({
-        ...formData,
-        tags: currentTags.filter((id) => id !== tagId),
-      });
-    } else {
-      setFormData({
-        ...formData,
-        tags: [...currentTags, tagId],
-      });
+    if (!formData.tags.includes(targetTag.id)) {
+      setFormData((prev) => ({ ...prev, tags: [...prev.tags, targetTag.id] }));
     }
+    setTagInput("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    if (!formData.categoryId) return setError("Select a news section.");
     setLoading(true);
-
-    // Validation
-    if (!formData.title || !formData.content) {
-      setError('Title and content are required');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const response = await articleService.create({
+      const res = await articleService.create({
         ...formData,
-        categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
+        categoryId: parseInt(formData.categoryId),
+        tags: formData.tags.map((id) => parseInt(id)),
       });
-
-      setSuccess('Article created successfully!');
-      
-      // Redirect to article page after 1 second
-      setTimeout(() => {
-        navigate(`/article/${response.data.article.slug}`);
-      }, 1000);
+      navigate(`/article/${res.data.article?.slug || res.data.slug}`);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create article');
-    } finally {
+      setError(err.response?.data?.message || "Publishing failed.");
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-4">
-        
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Write New Article</h1>
-          <p className="text-gray-600">Share your story with the world</p>
+    <div className="min-h-screen bg-white pt-28 pb-20">
+      <form
+        onSubmit={handleSubmit}
+        className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12"
+      >
+        <div className="lg:col-span-8">
+          <input
+            className="w-full text-5xl font-black tracking-tighter placeholder:text-slate-100 focus:outline-none mb-6"
+            placeholder="THE HEADLINE GOES HERE..."
+            value={formData.title}
+            onChange={(e) =>
+              setFormData({ ...formData, title: e.target.value })
+            }
+            required
+          />
+          <textarea
+            className="w-full text-xl text-slate-500 font-medium placeholder:text-slate-200 focus:outline-none resize-none mb-8 border-l-2 border-slate-100 pl-6"
+            placeholder="Write a compelling excerpt..."
+            rows="2"
+            value={formData.excerpt}
+            onChange={(e) =>
+              setFormData({ ...formData, excerpt: e.target.value })
+            }
+          />
+          <textarea
+            className="w-full min-h-[600px] text-lg leading-relaxed text-slate-800 placeholder:text-slate-200 focus:outline-none"
+            placeholder="Tell the story..."
+            value={formData.content}
+            onChange={(e) =>
+              setFormData({ ...formData, content: e.target.value })
+            }
+            required
+          />
         </div>
 
-        {/* Success Message */}
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-6 py-4 rounded-lg mb-6">
-            <p className="font-semibold">{success}</p>
-          </div>
-        )}
+        <div className="lg:col-span-4 space-y-8">
+          <div className="sticky top-32 space-y-8">
+            <div className="bg-slate-50 p-6 border border-slate-100">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6">
+                Settings
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[9px] font-black uppercase text-slate-900 block mb-2">
+                    Section
+                  </label>
+                  <select
+                    className="w-full bg-white border border-slate-200 p-3 text-xs font-bold uppercase outline-none focus:border-blue-600"
+                    value={formData.categoryId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, categoryId: e.target.value })
+                    }
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-6">
-            <p className="font-semibold">{error}</p>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
-          
-          {/* Title */}
-          <div>
-            <label htmlFor="title" className="block text-sm font-semibold text-gray-700 mb-2">
-              Article Title *
-            </label>
-            <input
-              id="title"
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-              placeholder="Enter an engaging title..."
-              required
-            />
-          </div>
-
-          {/* Excerpt */}
-          <div>
-            <label htmlFor="excerpt" className="block text-sm font-semibold text-gray-700 mb-2">
-              Excerpt (Short Description)
-            </label>
-            <input
-              id="excerpt"
-              type="text"
-              name="excerpt"
-              value={formData.excerpt}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Brief summary of your article..."
-            />
-            <p className="text-sm text-gray-500 mt-1">This will appear on the article cards</p>
-          </div>
-
-          {/* Content */}
-          <div>
-            <label htmlFor="content" className="block text-sm font-semibold text-gray-700 mb-2">
-              Article Content *
-            </label>
-            <textarea
-              id="content"
-              name="content"
-              value={formData.content}
-              onChange={handleChange}
-              rows="15"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              placeholder="Write your article content here..."
-              required
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              {formData.content.split(/\s+/).filter(Boolean).length} words
-            </p>
-          </div>
-
-          {/* Cover Image URL */}
-          <div>
-            <label htmlFor="coverImage" className="block text-sm font-semibold text-gray-700 mb-2">
-              Cover Image URL
-            </label>
-            <input
-              id="coverImage"
-              type="url"
-              name="coverImage"
-              value={formData.coverImage}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="https://example.com/image.jpg"
-            />
-            {formData.coverImage && (
-              <div className="mt-3 rounded-lg overflow-hidden border border-gray-200">
-                <img 
-                  src={formData.coverImage} 
-                  alt="Preview" 
-                  className="w-full h-48 object-cover"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
+                <div>
+                  <label className="text-[9px] font-black uppercase text-slate-900 block mb-2">
+                    Media Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, mediaType: "image" })
+                      }
+                      className={`py-2 text-[10px] font-bold uppercase border ${
+                        formData.mediaType === "image"
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white text-slate-400 border-slate-200"
+                      }`}
+                    >
+                      Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, mediaType: "video" })
+                      }
+                      className={`py-2 text-[10px] font-bold uppercase border ${
+                        formData.mediaType === "video"
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white text-slate-400 border-slate-200"
+                      }`}
+                    >
+                      Video
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* Category */}
-          <div>
-            <label htmlFor="categoryId" className="block text-sm font-semibold text-gray-700 mb-2">
-              Category
-            </label>
-            <select
-              id="categoryId"
-              name="categoryId"
-              value={formData.categoryId}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Select a category</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Tags
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => handleTagToggle(tag.id)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    formData.tags.includes(tag.id)
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  #{tag.name}
-                </button>
-              ))}
             </div>
-          </div>
 
-          {/* Publishing Options */}
-          <div className="space-y-3 pt-6 border-t border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Publishing Options</h3>
-            
-            {/* Publish */}
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                name="isPublished"
-                checked={formData.isPublished}
-                onChange={handleChange}
-                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <span className="ml-3 text-gray-700">
-                <span className="font-medium">Publish immediately</span>
-                <span className="block text-sm text-gray-500">Make this article visible to everyone</span>
-              </span>
-            </label>
+            <div className="bg-white border border-slate-100 p-6">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">
+                Featured Media
+              </h3>
+              {formData.mediaType === "image" ? (
+                <button
+                  type="button"
+                  onClick={() => setIsGalleryOpen(true)}
+                  className="w-full aspect-[16/9] bg-slate-50 border-2 border-dashed border-slate-100 flex items-center justify-center overflow-hidden hover:border-blue-600 transition-all"
+                >
+                  {formData.coverImage ? (
+                    <img
+                      src={
+                        formData.coverImage.startsWith("http")
+                          ? formData.coverImage
+                          : `${API_BASE}${formData.coverImage}`
+                      }
+                      className="w-full h-full object-cover"
+                      alt="Selected"
+                    />
+                  ) : (
+                    <span className="text-[10px] font-black text-slate-300 uppercase">
+                      Open Gallery
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <input
+                  className="w-full bg-slate-50 border border-slate-100 p-3 text-xs outline-none focus:border-blue-600 font-mono"
+                  placeholder="Paste YouTube or MP4 link..."
+                  value={formData.videoUrl}
+                  onChange={(e) =>
+                    setFormData({ ...formData, videoUrl: e.target.value })
+                  }
+                />
+              )}
+            </div>
 
-            {/* Featured - Only for EDITOR/ADMIN */}
-            {(user?.role === 'EDITOR' || user?.role === 'ADMIN') && (
-              <>
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="isFeatured"
-                    checked={formData.isFeatured}
-                    onChange={handleChange}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="ml-3 text-gray-700">
-                    <span className="font-medium">Featured article</span>
-                    <span className="block text-sm text-gray-500">Highlight this article on homepage</span>
-                  </span>
-                </label>
-
-                {/* Breaking News */}
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="isBreaking"
-                    checked={formData.isBreaking}
-                    onChange={handleChange}
-                    className="w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                  />
-                  <span className="ml-3 text-gray-700">
-                    <span className="font-medium">Breaking news</span>
-                    <span className="block text-sm text-gray-500">Mark as urgent/breaking news</span>
-                  </span>
-                </label>
-              </>
+            <button
+              disabled={loading}
+              className="w-full bg-slate-900 text-white py-4 text-[11px] font-black uppercase tracking-[0.3em] hover:bg-blue-600 transition-all shadow-xl"
+            >
+              {loading ? "Processing..." : "Publish to Feed"}
+            </button>
+            {error && (
+              <p className="text-[10px] text-red-500 font-bold uppercase text-center mt-4">
+                {error}
+              </p>
             )}
           </div>
+        </div>
+      </form>
 
-          {/* Submit Buttons */}
-          <div className="flex gap-4 pt-6">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-lg"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Creating...
-                </span>
-              ) : (
-                formData.isPublished ? 'Publish Article' : 'Save as Draft'
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
+      <MediaGalleryModal
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
+        onSelect={(url) => {
+          setFormData({ ...formData, coverImage: url });
+          setIsGalleryOpen(false);
+        }}
+      />
     </div>
   );
 }
-
 export default CreateArticlePage;
